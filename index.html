@@ -227,6 +227,9 @@
 
   // ---- YouTube IFrame API
   let player, ready = false, pending = null, isList = false, loop = false, errSkips = 0;
+  // A link with both v= and list= (e.g. a YouTube Mix "RD…") plays that exact video first,
+  // then hands over to the list, continuing right after the seed video.
+  let queue = null, seekAfter = null;
   const tag = document.createElement("script");
   tag.src = "https://www.youtube.com/iframe_api";
   document.head.appendChild(tag);
@@ -248,13 +251,21 @@
           $("icoPlay").style.display = playing ? "none" : "";
           $("icoPause").style.display = playing ? "" : "none";
           if (playing) { errSkips = 0; msg(""); updateTitle(); }
-          if (e.data === YT.PlayerState.ENDED && loop && !isList) { player.seekTo(0); player.playVideo(); }
+          if (seekAfter) {                      // first callback after handing over to the list
+            const pl = player.getPlaylist && player.getPlaylist();
+            if (pl && pl.length) {
+              const i = pl.indexOf(seekAfter); seekAfter = null;
+              if (i >= 0 && i + 1 < pl.length && player.getPlaylistIndex() !== i + 1) player.playVideoAt(i + 1);
+            }
+          }
+          if (e.data === YT.PlayerState.ENDED && !handover() && loop && !isList) { player.seekTo(0); player.playVideo(); }
           if (e.data === YT.PlayerState.CUED) updateTitle();
         },
         onError: e => {
           console.warn("YT error", e.data);
           const why = { 2: "link/ID không hợp lệ", 5: "trình duyệt không phát được video này",
             100: "video đã bị xoá hoặc để riêng tư", 101: "chủ video không cho phép phát nhúng", 150: "chủ video không cho phép phát nhúng" }[e.data] || "lỗi " + e.data;
+          if (queue) { msg(`Bỏ qua bài đầu: ${why}. Chuyển sang playlist…`, true); setTimeout(handover, 900); return; }
           if (isList && errSkips < 10) {
             errSkips++; msg(`Bỏ qua 1 bài: ${why}. Đang chuyển bài…`, true);
             setTimeout(() => player.nextVideo(), 900);
@@ -269,6 +280,15 @@
 
   function load(src, autoplay) {
     if (!ready) { pending = src; return; }
+    queue = null; seekAfter = null;
+    if (src.list && src.video) {
+      isList = false;
+      queue = { list: src.list, seed: src.video };
+      const opts = { videoId: src.video, startSeconds: src.start || 0 };
+      autoplay ? player.loadVideoById(opts) : player.cueVideoById(opts);
+      $("track").textContent = "đang tải…";
+      return;
+    }
     isList = !!src.list;
     if (src.list) {
       const opts = { listType: "playlist", list: src.list, index: src.index || 0, startSeconds: src.start || 0 };
@@ -279,6 +299,15 @@
       autoplay ? player.loadVideoById(opts) : player.cueVideoById(opts);
     }
     $("track").textContent = "đang tải…";
+  }
+
+  function handover() {
+    const q = queue; queue = null;
+    if (!q) return false;
+    isList = true; seekAfter = q.seed;
+    player.loadPlaylist({ listType: "playlist", list: q.list, index: 0 });
+    if (loop) player.setLoop(true);
+    return true;
   }
 
   function updateTitle() {
@@ -303,7 +332,7 @@
     else if (st === -1 && !player.getVideoUrl().includes("v=")) msg("Dán link YouTube rồi bấm TẢI trước nhé.", true);
     else player.playVideo();
   };
-  $("next").onclick = () => { if (!ready) return; isList ? player.nextVideo() : player.seekTo(Math.max(0, player.getDuration() - 1), true); };
+  $("next").onclick = () => { if (!ready || handover()) return; isList ? player.nextVideo() : player.seekTo(Math.max(0, player.getDuration() - 1), true); };
   $("prev").onclick = () => { if (!ready) return; (isList && player.getCurrentTime() < 3) ? player.previousVideo() : player.seekTo(0, true); };
   $("vol").oninput = e => { if (ready) { player.setVolume(+e.target.value); player.unMute(); } store.set("vol", e.target.value); };
   $("loop").onclick = () => { loop = !loop; $("loop").classList.toggle("on", loop); if (ready && isList) player.setLoop(loop); };
