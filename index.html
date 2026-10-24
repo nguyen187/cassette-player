@@ -36,8 +36,10 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--page); font-family: "Space Grotesk", system-ui, sans-serif; color: var(--deck-ink); }
-  body { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
-  .wrap { width: min(520px, 100%); position: relative; }
+  html, body { overflow-x: hidden; }
+  body { min-height: 100vh; display: grid; place-items: center; padding: clamp(6px, 3vw, 16px); }
+  /* the widget sizes itself from its own width (container queries), so it fits any Notion column */
+  .wrap { width: min(560px, 100%); position: relative; container-type: inline-size; }
 
   /* ---------------- cassette */
   .cassette { position: relative; z-index: 2; filter: drop-shadow(0 14px 22px rgba(21, 34, 45, .22)); }
@@ -49,26 +51,29 @@
   .title {
     position: absolute; left: 12%; right: 12%; top: 8.5%; height: 13%;
     display: flex; align-items: center; justify-content: center;
-    font-family: "Caveat", cursive; font-size: clamp(20px, 6.4vw, 34px); color: var(--ink);
+    font-family: "Caveat", cursive; font-size: clamp(15px, 6.6cqw, 36px); color: var(--ink);
     outline: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text;
   }
   .title:focus { background: rgba(0, 0, 0, .04); border-radius: 6px; }
   .now {
     position: absolute; left: 7%; right: 7%; bottom: 14.5%;
-    display: flex; justify-content: space-between; gap: 12px;
-    font-size: clamp(10px, 2.6vw, 13px); font-weight: 700; letter-spacing: .02em; color: var(--label);
+    display: flex; justify-content: space-between; gap: clamp(6px, 2cqw, 12px);
+    font-size: clamp(9px, 2.5cqw, 13px); font-weight: 700; letter-spacing: .02em; color: var(--label);
   }
   .now .track { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; opacity: .95; }
   .now .time { flex: none; font-variant-numeric: tabular-nums; }
-  .progress { position: absolute; left: 7%; right: 7%; bottom: 7.5%; height: 8px; cursor: pointer; }
+  .progress { position: absolute; left: 7%; right: 7%; bottom: 7.5%; height: clamp(5px, 1.5cqw, 8px); cursor: pointer; }
+  .progress::before { content: ""; position: absolute; inset: -8px 0; }   /* bigger touch target */
   .progress .bar { position: absolute; inset: 0; border-radius: 99px; background: rgba(0, 0, 0, .18); overflow: hidden; }
   .progress .fill { height: 100%; width: 0; background: var(--label); border-radius: 99px; }
 
   /* ---------------- deck controls */
   .deck {
-    margin: -18px 4% 0; padding: 30px 18px 16px; border-radius: 0 0 18px 18px;
+    margin: calc(-1 * clamp(10px, 3.4cqw, 18px)) 4% 0;
+    padding: calc(clamp(10px, 3.4cqw, 18px) + 12px) clamp(10px, 3.4cqw, 18px) clamp(10px, 3cqw, 16px);
+    border-radius: 0 0 18px 18px; flex-wrap: wrap; justify-content: center;
     background: var(--deck); box-shadow: 0 10px 24px rgba(21, 34, 45, .12);
-    display: flex; align-items: center; gap: 10px; position: relative; z-index: 1;
+    display: flex; align-items: center; gap: clamp(6px, 2cqw, 10px); position: relative; z-index: 1;
   }
   .btn {
     flex: none; width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer;
@@ -99,6 +104,40 @@
   .msg.err { color: #d1381c; opacity: 1; }
   .hide-ui .loader { display: none; }
   .ver { position: absolute; right: 6%; bottom: -18px; font-size: 10px; opacity: .45; }
+
+  /* ---------------- responsive: narrow columns */
+  @container (max-width: 420px) {
+    .btn { width: 36px; height: 36px; }
+    .btn.play { width: 46px; height: 46px; }
+    .btn.small { width: 32px; height: 32px; }
+    .btn svg { width: 16px; height: 16px; }
+    .vol { order: 10; flex-basis: 100%; margin-top: 2px; }        /* volume gets its own row */
+    .loader input, .loader button { font-size: 12px; }
+    .loader input { padding: 8px 10px; }
+    .loader button { padding: 0 10px; }
+  }
+  @container (max-width: 280px) {
+    .now .time, .ver { display: none; }
+    .btn.small { display: none; }                                   /* keep only the core transport */
+    .msg { font-size: 11px; }
+  }
+  /* very short embeds: drop the link box (use ?url=… instead) */
+  @media (max-height: 230px) { .loader, .msg, .ver { display: none; } }
+
+  /* ---------------- responsive: wide-but-short embeds -> cassette left, controls right */
+  @media (min-aspect-ratio: 16/9) and (max-height: 380px) and (min-width: 560px) {
+    .wrap { width: min(980px, 100%); display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(220px, 1fr);
+            column-gap: clamp(10px, 2cqw, 18px); align-items: center; }
+    .cassette { grid-column: 1; grid-row: 1 / span 4; width: min(100%, calc((100vh - 24px) * 520 / 330)); justify-self: center; }
+    .deck, .loader, .msg, .show-video .yt { grid-column: 2; margin: 0; }
+    .deck { border-radius: 16px; padding: 12px; }
+    .loader { margin-top: 10px; }
+    .msg { margin-top: 6px; }
+    .show-video .yt { width: 100%; margin-top: 10px; }
+    .ver { position: static; grid-column: 2; text-align: right; margin-top: 4px; }
+    .title { font-size: clamp(15px, 3.6cqw, 34px); }
+    .now { font-size: clamp(9px, 1.4cqw, 13px); }
+  }
 
   /* YouTube player: kept >=200x200 (API requirement) but invisible unless "video" is toggled on */
   .yt { position: absolute; left: 50%; top: 8px; width: 240px; height: 200px; transform: translateX(-50%);
@@ -184,7 +223,7 @@
     <button type="submit">TẢI</button>
   </form>
   <div class="msg" id="msg"></div>
-  <div class="ver">v2 · mix-fix</div>
+  <div class="ver">v3 · responsive</div>
   <div class="yt" id="ytBox"><div id="yt"></div></div>
 </div>
 
